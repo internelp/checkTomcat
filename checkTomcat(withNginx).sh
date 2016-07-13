@@ -160,9 +160,10 @@ if [[ ! -z $1 ]]; then
 	# 先启动nginx
 	logNotice `service nginx start`
 	# 再启动tomcat
-	su - $TOMCAT_USER /usr/local/tomcat7/bin/startup.sh
+	logNotice `su - $TOMCAT_USER /usr/local/tomcat7/bin/startup.sh`
 	logSucess "启动新的Tomcat进程……"
 	sleepa
+	logNotice "下面是tomcat的进程信息。"
 	logNotice `ps -ef|grep tomcat|grep -v grep|grep -v $$`
 	eexit 0
 else
@@ -182,12 +183,22 @@ checkMe (){
 checkTomcat(){	#检查tomcat的健康状态
 	if [[ ! -a $TOMCAT_PID_PATH ]]; then
 		logNotice "$TOMCAT_PID_PATH文件不存在，Tomcat未启动，将启动Tomcat。"
-		service nginx restart
-		sh /usr/local/tomcat7/bin/startup.sh
+		logNotice `killall nginx`
+		logNotice `service nginx restart`
+		logNotice `su - $TOMCAT_USER /usr/local/tomcat7/bin/startup.sh`
+		eexit 0
+	fi
+	tomPid=`cat $TOMCAT_PID_PATH`
+	isTomHere=`pgrep java|grep $tomPid|wc -l`
+	echo $isTomHere
+	if [[ $isTomHere -lt "1" ]]; then
+		logErr "PID存在，但是Tomcat没有启动，将启动Tomcat。"
+		logNotice `killall nginx`
+		logNotice `service nginx restart`
+		logNotice `su - $TOMCAT_USER /usr/local/tomcat7/bin/startup.sh`
 		eexit 0
 	fi
 
-	tomPid=`cat $TOMCAT_PID_PATH`
 	logNotice "TOMCAT_PID\t\t->\t$tomPid"
 	cpuUsage=`getCpuUsege $tomPid`
 	logNotice "TOMCAT_CPU_USAGE\t->\t$cpuUsage%"
