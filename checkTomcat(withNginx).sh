@@ -7,6 +7,8 @@
 
 # 依赖包：
 # 	bc
+# nginx前端，tomcat后端
+# 保证nginx安全退出，不丢失连接中的连接。
 
 
 # 设定全局变量
@@ -15,13 +17,19 @@ pidfile="/dev/shm/checkTomcat.pid"
 
 ###############################################先设定这里######################################
 # 检测次数，检测多少次以后算问题出现
-checkCount=100
+checkCount=2
 # CPU限额，超过这个值认为cpu使用过高，设为1则cpu使用率限额为1%。
 usage=1
 # tomcat pid的路径，用于关闭tomcat
 TOMCAT_PID_PATH="/dev/shm/tomcat7.pid"
 # tomcat bin 路径，用于寻找启动脚本
 TOMCAT_BIN_PATH="/opt/soft/tomcat-7.0.64/bin"
+# NGINX PID的路径，用于关闭nginx
+NGINX_PID_PATH="/var/run/nginx.pid"
+# 启动tomcat的用户
+TOMCAT_USER="gaofeng"
+# nginx最大关闭时间，超过这个时间直接杀死nginx。
+NGX_STOP_TIME_OUT="30"
 ###############################################################################################
 
 # 定义日志路径
@@ -111,14 +119,47 @@ isSelfOn(){	#检测本进程是否有运行中的 根据pidfile检查 ，存在�
 	fi
 }
 
+gracefulStopNginx () {
+	# 使用pid检测nginx进程数量，如果大于0就一直检测，否则才退出。
+	# 优雅的关闭Nginx
+	logNotice "要关闭的Nginx其Pid为[$1]！"
+	kill -QUIT $1
+	# 检测nginx是否成功关闭
+	logNotice "正在检测Nginx是否正常退出……"
+	nginxProcessCount=`ps -ef|grep $1|grep -v grep|wc -l`
+	i="1"
+	while [[ $nginxProcessCount -gt "0" ]]; do
+		i=$(( $i + 1 ))
+		logErr "Nginx仍有[$nginxProcessCount]个进程存在，将重新检测。"
+		sleep 1
+		logNotice "正在进行第[$i]次检测Nginx是否正常退出……"
+		nginxProcessCount=`ps -ef|grep $1|grep -v grep|wc -l`
+		if [[ $i -ge $NGX_STOP_TIME_OUT ]]; then
+			logErr "等待Nginx安全关闭超时[$i秒]，将强制杀死Nginx进程！"
+			logNotice `killall nginx`
+			logNotice `service nginx stop`
+			logErr "强制关闭了Nginx！"
+			break
+		fi
+	done
+	if [[ $nginxProcessCount -lt "1" ]]; then
+		logSucess "安全的关闭了Nginx！"
+	fi
+}
+
 restartTomcat(){	#根据pid重启这个tomcat进程
 logSucess "$1\t->\t$1"
 if [[ ! -z $1 ]]; then
+	logNotice "先关闭Nginx"
+	gracefulStopNginx `cat $NGINX_PID_PATH`
 	logNotice "要重启的tomcat其PID为[$1]。"
 	sleepa
 	kill -9 $1
 	logSucess "杀死了pid为$1的Tomcat进程。"
-	/usr/local/tomcat7/bin/startup.sh
+	# 先启动nginx
+	logNotice `service nginx start`
+	# 再启动tomcat
+	su - $TOMCAT_USER /usr/local/tomcat7/bin/startup.sh
 	logSucess "启动新的Tomcat进程……"
 	sleepa
 	logNotice `ps -ef|grep tomcat|grep -v grep|grep -v $$`
@@ -130,9 +171,9 @@ fi
 }
 
 checkMe (){
-	if [ `id -u` -eq 0 ];then
-		# 不能使用root身份，否则不能操作nginx
-		logErr 	"您不能使用root身份来执行此脚本。"
+	if [ `id -u` -gt 0 ];then
+		# 必须使用root身份，否则不能操作nginx
+		logErr 	"您必须使用root身份来执行此脚本。"
 		eexit	1
 	fi
 }
@@ -140,6 +181,7 @@ checkMe (){
 checkTomcat(){	#检查tomcat的健康状态
 	if [[ ! -a $TOMCAT_PID_PATH ]]; then
 		logNotice "$TOMCAT_PID_PATH文件不存在，Tomcat未启动，将启动Tomcat。"
+		service nginx restart
 		sh /usr/local/tomcat7/bin/startup.sh
 		eexit 0
 	fi
