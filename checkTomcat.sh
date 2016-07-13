@@ -176,7 +176,7 @@ checkTomcat(){	#检查tomcat的健康状态
 				sleepa
 				cpuUsage=`getCpuUsege $tomPid`
 				logNotice "TOMCAT_CPU_USAGE\t->\t$cpuUsage%"
-				aa=`expr $cpuUsage \>\= $usage`	# 如果第一个值大于等于第二个值，则输出1，否则输出0.
+				aa=`echo -e $cpuUsage\>\=$usage|bc`	# 如果第一个值大于等于第二个值，则输出1，否则输出0.
 			fi
 		done
 	fi
