@@ -160,7 +160,7 @@ if [[ ! -z $1 ]]; then
 	# 先启动nginx
 	logNotice `service nginx start`
 	# 再启动tomcat
-	logNotice `su - $TOMCAT_USER /usr/local/tomcat7/bin/startup.sh`
+	logNotice `su - $TOMCAT_USER $TOMCAT_BIN_PATH/startup.sh`
 	logSucess "启动新的Tomcat进程……"
 	sleepa
 	logNotice "下面是tomcat的进程信息。"
@@ -185,7 +185,7 @@ checkTomcat(){	#检查tomcat的健康状态
 		logNotice "$TOMCAT_PID_PATH文件不存在，Tomcat未启动，将启动Tomcat。"
 		logNotice `killall nginx`
 		logNotice `service nginx restart`
-		logNotice `su - $TOMCAT_USER /usr/local/tomcat7/bin/startup.sh`
+		logNotice `su - $TOMCAT_USER $TOMCAT_BIN_PATH/startup.sh`
 		eexit 0
 	fi
 	tomPid=`cat $TOMCAT_PID_PATH`

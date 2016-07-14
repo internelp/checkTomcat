@@ -15,11 +15,11 @@ pidfile="/dev/shm/checkTomcat.pid"
 
 ###############################################先设定这里######################################
 # 检测次数，检测多少次以后算问题出现
-checkCount=100
+checkCount=10
 # CPU限额，超过这个值认为cpu使用过高，设为1则cpu使用率限额为1%。
-usage=1
+usage=100
 # tomcat pid的路径，用于关闭tomcat
-TOMCAT_PID_PATH="/dev/shm/tomcat7.pid"
+TOMCAT_PID_PATH="/opt/soft/tomcat-7.0.64/bin/CATALINA_PID"
 # tomcat bin 路径，用于寻找启动脚本
 TOMCAT_BIN_PATH="/opt/soft/tomcat-7.0.64/bin"
 ###############################################################################################
@@ -31,15 +31,15 @@ logFile=/dev/null
 # 定义字体颜色
 logErr() {
     echo -e `date +%G/%m/%d\ %T`" [\033[31;1m错误\033[0m] \033[31;1m"$@"\033[0m"
-    echo `date +%G/%m/%d\ %T`" [错误] "$@ >> $logFile
+    echo -e `date +%G/%m/%d\ %T`" [错误] "$@ >> $logFile
 }
 logNotice(){
     echo -e `date +%G/%m/%d\ %T`" [\033[36;1m信息\033[0m] \033[36;1m"$@"\033[0m"
-    echo `date +%G/%m/%d\ %T`" [信息] "$@ >> $logFile
+    echo -e `date +%G/%m/%d\ %T`" [信息] "$@ >> $logFile
 }
 logSucess(){
     echo -e `date +%G/%m/%d\ %T`" [\033[32;1m正确\033[0m] \033[32;1m"$@"\033[0m"
-    echo `date +%G/%m/%d\ %T`" [正确] "$@ >> $logFile
+    echo -e `date +%G/%m/%d\ %T`" [正确] "$@ >> $logFile
 }
 echoRed(){
     echo -e "\033[31;1m"$@"\033[0m"
@@ -118,7 +118,7 @@ if [[ ! -z $1 ]]; then
 	sleepa
 	kill -9 $1
 	logSucess "杀死了pid为$1的Tomcat进程。"
-	/usr/local/tomcat7/bin/startup.sh
+	logNotice `$TOMCAT_BIN_PATH/startup.sh`
 	logSucess "启动新的Tomcat进程……"
 	sleepa
 	logNotice `ps -ef|grep tomcat|grep -v grep|grep -v $$`
@@ -140,11 +140,17 @@ checkMe (){
 checkTomcat(){	#检查tomcat的健康状态
 	if [[ ! -a $TOMCAT_PID_PATH ]]; then
 		logNotice "$TOMCAT_PID_PATH文件不存在，Tomcat未启动，将启动Tomcat。"
-		sh /usr/local/tomcat7/bin/startup.sh
+		logNotice `$TOMCAT_BIN_PATH/startup.sh`
 		eexit 0
 	fi
 
 	tomPid=`cat $TOMCAT_PID_PATH`
+	isTomHere=`pgrep java|grep $tomPid|wc -l`
+	if [[ $isTomHere -lt "1" ]]; then
+		logErr "PID存在，但是Tomcat没有启动，将启动Tomcat。"
+		logNotice `$TOMCAT_BIN_PATH/startup.sh`
+		eexit 0
+	fi
 	logNotice "TOMCAT_PID\t\t->\t$tomPid"
 	cpuUsage=`getCpuUsege $tomPid`
 	logNotice "TOMCAT_CPU_USAGE\t->\t$cpuUsage%"
