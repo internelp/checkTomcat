@@ -117,10 +117,11 @@ if [[ ! -z $1 ]]; then
 	logNotice "要重启的tomcat其PID为[$1]。"
 	sleepa
 	kill -9 $1
+	rm -rf $TOMCAT_PID_PATH
 	logSucess "杀死了pid为$1的Tomcat进程。"
-	logNotice `$TOMCAT_BIN_PATH/startup.sh`
 	logSucess "启动新的Tomcat进程……"
 	sleepa
+	logNotice `$TOMCAT_BIN_PATH/startup.sh`
 	logNotice `ps -ef|grep tomcat|grep -v grep|grep -v $$`
 	eexit 0
 else
@@ -148,6 +149,7 @@ checkTomcat(){	#检查tomcat的健康状态
 	isTomHere=`pgrep java|grep $tomPid|wc -l`
 	if [[ $isTomHere -lt "1" ]]; then
 		logErr "PID存在，但是Tomcat没有启动，将启动Tomcat。"
+		rm -rf $TOMCAT_PID_PATH
 		logNotice `$TOMCAT_BIN_PATH/startup.sh`
 		eexit 0
 	fi
